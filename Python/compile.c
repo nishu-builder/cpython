@@ -6284,23 +6284,33 @@ compiler_visit_expr1(struct compiler *c, expr_ty e)
     /* The following exprs can be assignment targets. */
     case SafeAttribute_kind:
         // TODO: Maybe do the can-optimize-call stuff
+        if (e->v.SafeAttribute.ctx != Load) {
+            // Only loading should be allowed. Not assignent or deletion.
+            return ERROR;
+        }
+
+        // Evaluate the object (a in a?.b) and put it on the top of the stack
         VISIT(c, expr, e->v.SafeAttribute.value);
+
+        NEW_JUMP_TARGET_LABEL(c, end);
+
+         // Copy e on the stack
+        ADDOP_I(c, LOC(e), COPY, 1);
+        // Load None onto the stack
+        ADDOP_LOAD_CONST(c, LOC(e), Py_None);
+        // Compare the top two items on the stack replaces them with the result of that comparison
+        ADDOP_I(c, LOC(e), IS_OP, 0);
+        // Jump to end if the last thing on the stack is true
+        ADDOP_JUMP(c, loc, POP_JUMP_IF_TRUE, end);
+
+        // If we did not jump, then
+        ADDOP_NAME(c, loc, LOAD_ATTR, e->v.SafeAttribute.attr, names); // Load attribute
+
+        // In the case where the value was None, None is still on the top of the stack
+
+        USE_LABEL(c, end);
         loc = LOC(e);
         loc = update_start_location_to_match_safe_attr(c, loc, e);
-        switch (e->v.SafeAttribute.ctx) {
-        case Load:
-            ADDOP_NAME(c, loc, LOAD_ATTR, e->v.SafeAttribute.attr, names);
-            break;
-        case Store:
-            if (forbidden_name(c, loc, e->v.SafeAttribute.attr, e->v.SafeAttribute.ctx)) {
-                return ERROR;
-            }
-            ADDOP_NAME(c, loc, STORE_ATTR, e->v.SafeAttribute.attr, names);
-            break;
-        case Del:
-            ADDOP_NAME(c, loc, DELETE_ATTR, e->v.SafeAttribute.attr, names);
-            break;
-        }
         break;
     case Attribute_kind:
         if (e->v.Attribute.ctx == Load && can_optimize_super_call(c, e)) {
@@ -6312,11 +6322,22 @@ compiler_visit_expr1(struct compiler *c, expr_ty e)
             ADDOP(c, loc, NOP);
             return SUCCESS;
         }
+
+        // Processes the e->v.Attribute.value, which is the object whose attribute is being accessed
+        // (e.g., a in a.b). Generates bytecode to evaluate this expression and leaves
+        // its result on top of the stack.
         VISIT(c, expr, e->v.Attribute.value);
+
+        // Updates the location information (line number and column offset) in the compiler's state
+        // to correspond to the attribute expression. This is used for error reporting and debugging
         loc = LOC(e);
         loc = update_start_location_to_match_attr(c, loc, e);
+
         switch (e->v.Attribute.ctx) {
         case Load:
+            // Instruction for PVM to access the attribute (b in a.b) of the object that is currently
+            // on top of the stack. The LOAD_ATTR operation will replace the object a with its
+            // attribute b on the top of the stack
             ADDOP_NAME(c, loc, LOAD_ATTR, e->v.Attribute.attr, names);
             break;
         case Store:
@@ -6391,12 +6412,8 @@ compiler_augassign(struct compiler *c, stmt_ty s)
         loc = update_start_location_to_match_attr(c, loc, e);
         ADDOP_NAME(c, loc, LOAD_ATTR, e->v.Attribute.attr, names);
         break;
-    case SafeAttribute_kind:
-        VISIT(c, expr, e->v.SafeAttribute.value);
-        ADDOP_I(c, loc, COPY, 1);
-        loc = update_start_location_to_match_safe_attr(c, loc, e);
-        ADDOP_NAME(c, loc, LOAD_ATTR, e->v.SafeAttribute.attr, names);
-        break;
+    // NOTE: Do not need the target to be safe-attr-able.
+    // e.g. a?.b *= 4 should not be allowed.
     case Subscript_kind:
         VISIT(c, expr, e->v.Subscript.value);
         if (is_two_element_slice(e->v.Subscript.slice)) {

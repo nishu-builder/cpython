@@ -226,7 +226,7 @@ validate_expr(struct validator *state, expr_ty exp, expr_context_ty ctx)
     case Attribute_kind:
         actual_ctx = exp->v.Attribute.ctx;
         break;
-    case SafeAttribute_kind: // NOTE: Might need to do another check here?
+    case SafeAttribute_kind:
         actual_ctx = exp->v.SafeAttribute.ctx;
         break;
     case Subscript_kind:
