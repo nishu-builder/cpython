@@ -62,6 +62,7 @@ const char * const _PyParser_TokenNames[] = {
     "COLONEQUAL",
     "EXCLAMATION",
     "QUESTIONMARKDOT",
+    "QUESTIONMARKLSQB",
     "OP",
     "TYPE_IGNORE",
     "TYPE_COMMENT",
@@ -178,6 +179,7 @@ _PyToken_TwoChars(int c1, int c2)
     case '?':
         switch (c2) {
         case '.': return QUESTIONMARKDOT;
+        case '[': return QUESTIONMARKLSQB;
         }
         break;
     case '@':

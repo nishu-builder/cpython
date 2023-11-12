@@ -14217,6 +14217,7 @@ await_primary_rule(Parser *p)
 //     | primary genexp
 //     | primary '(' arguments? ')'
 //     | primary '[' slices ']'
+//     | primary '?[' slices ']'
 //     | atom
 static expr_ty primary_raw(Parser *);
 static expr_ty
@@ -14471,6 +14472,48 @@ primary_raw(Parser *p)
         p->mark = _mark;
         D(fprintf(stderr, "%*c%s primary[%d-%d]: %s failed!\n", p->level, ' ',
                   p->error_indicator ? "ERROR!" : "-", _mark, p->mark, "primary '[' slices ']'"));
+    }
+    { // primary '?[' slices ']'
+        if (p->error_indicator) {
+            p->level--;
+            return NULL;
+        }
+        D(fprintf(stderr, "%*c> primary[%d-%d]: %s\n", p->level, ' ', _mark, p->mark, "primary '?[' slices ']'"));
+        Token * _literal;
+        Token * _literal_1;
+        expr_ty a;
+        expr_ty b;
+        if (
+            (a = primary_rule(p))  // primary
+            &&
+            (_literal = _PyPegen_expect_token(p, 56))  // token='?['
+            &&
+            (b = slices_rule(p))  // slices
+            &&
+            (_literal_1 = _PyPegen_expect_token(p, 10))  // token=']'
+        )
+        {
+            D(fprintf(stderr, "%*c+ primary[%d-%d]: %s succeeded!\n", p->level, ' ', _mark, p->mark, "primary '?[' slices ']'"));
+            Token *_token = _PyPegen_get_last_nonnwhitespace_token(p);
+            if (_token == NULL) {
+                p->level--;
+                return NULL;
+            }
+            int _end_lineno = _token->end_lineno;
+            UNUSED(_end_lineno); // Only used by EXTRA macro
+            int _end_col_offset = _token->end_col_offset;
+            UNUSED(_end_col_offset); // Only used by EXTRA macro
+            _res = _PyAST_SafeSubscript ( a , b , Load , EXTRA );
+            if (_res == NULL && PyErr_Occurred()) {
+                p->error_indicator = 1;
+                p->level--;
+                return NULL;
+            }
+            goto done;
+        }
+        p->mark = _mark;
+        D(fprintf(stderr, "%*c%s primary[%d-%d]: %s failed!\n", p->level, ' ',
+                  p->error_indicator ? "ERROR!" : "-", _mark, p->mark, "primary '?[' slices ']'"));
     }
     { // atom
         if (p->error_indicator) {

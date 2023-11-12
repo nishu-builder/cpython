@@ -86,6 +86,7 @@ module Python
          | Attribute(expr value, identifier attr, expr_context ctx)
          | SafeAttribute(expr value, identifier attr, expr_context ctx)
          | Subscript(expr value, expr slice, expr_context ctx)
+         | SafeSubscript(expr value, expr slice, expr_context ctx)
          | Starred(expr value, expr_context ctx)
          | Name(identifier id, expr_context ctx)
          | List(expr* elts, expr_context ctx)

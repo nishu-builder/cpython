@@ -441,6 +441,7 @@ static int compiler_visit_expr(struct compiler *, expr_ty);
 static int compiler_augassign(struct compiler *, stmt_ty);
 static int compiler_annassign(struct compiler *, stmt_ty);
 static int compiler_subscript(struct compiler *, expr_ty);
+static int compiler_safe_subscript(struct compiler *, expr_ty);
 static int compiler_slice(struct compiler *, expr_ty);
 
 static bool are_all_items_const(asdl_expr_seq *, Py_ssize_t, Py_ssize_t);
@@ -4734,14 +4735,14 @@ check_caller(struct compiler *c, expr_ty e)
 }
 
 static int
-check_subscripter(struct compiler *c, expr_ty e)
+check_maybe_safe_subscripter(struct compiler *c, expr_ty e, bool safe)
 {
     PyObject *v;
 
     switch (e->kind) {
     case Constant_kind:
         v = e->v.Constant.value;
-        if (!(v == Py_None || v == Py_Ellipsis ||
+        if (!((v == Py_None && !safe) || v == Py_Ellipsis ||
               PyLong_Check(v) || PyFloat_Check(v) || PyComplex_Check(v) ||
               PyAnySet_Check(v)))
         {
@@ -4760,6 +4761,18 @@ check_subscripter(struct compiler *c, expr_ty e)
     default:
         return SUCCESS;
     }
+}
+
+static int
+check_safe_subscripter(struct compiler *c, expr_ty e)
+{
+    return check_maybe_safe_subscripter(c, e, true);
+}
+
+static int
+check_subscripter(struct compiler *c, expr_ty e)
+{
+    return check_maybe_safe_subscripter(c, e, false);
 }
 
 static int
@@ -6335,6 +6348,8 @@ compiler_visit_expr1(struct compiler *c, expr_ty e)
         break;
     case Subscript_kind:
         return compiler_subscript(c, e);
+    case SafeSubscript_kind:
+        return compiler_safe_subscript(c, e);
     case Starred_kind:
         switch (e->v.Starred.ctx) {
         case Store:
@@ -6412,6 +6427,8 @@ compiler_augassign(struct compiler *c, stmt_ty s)
             ADDOP(c, loc, BINARY_SUBSCR);
         }
         break;
+    // NOTE: Do not need the target to be safe-subscriptable
+    // e.g. a?[b] *= 4 should not be allowed.
     case Name_kind:
         RETURN_IF_ERROR(compiler_nameop(c, loc, e->v.Name.id, Load));
         break;
@@ -6442,6 +6459,19 @@ compiler_augassign(struct compiler *c, stmt_ty s)
         break;
     case Subscript_kind:
         if (is_two_element_slice(e->v.Subscript.slice)) {
+            ADDOP_I(c, loc, SWAP, 4);
+            ADDOP_I(c, loc, SWAP, 3);
+            ADDOP_I(c, loc, SWAP, 2);
+            ADDOP(c, loc, STORE_SLICE);
+        }
+        else {
+            ADDOP_I(c, loc, SWAP, 3);
+            ADDOP_I(c, loc, SWAP, 2);
+            ADDOP(c, loc, STORE_SUBSCR);
+        }
+        break;
+    case SafeSubscript_kind:
+        if (is_two_element_slice(e->v.SafeSubscript.slice)) {
             ADDOP_I(c, loc, SWAP, 4);
             ADDOP_I(c, loc, SWAP, 3);
             ADDOP_I(c, loc, SWAP, 2);
@@ -6576,6 +6606,13 @@ compiler_annassign(struct compiler *c, stmt_ty s)
                 return ERROR;
         }
         break;
+    case SafeSubscript_kind:
+        if (!s->v.AnnAssign.value &&
+            (check_ann_expr(c, targ->v.SafeSubscript.value) < 0 ||
+             check_ann_subscr(c, targ->v.SafeSubscript.slice) < 0)) {
+                return ERROR;
+        }
+        break;
     default:
         PyErr_Format(PyExc_SystemError,
                      "invalid node type (%d) for annotated assignment",
@@ -6653,6 +6690,47 @@ compiler_warn(struct compiler *c, location loc,
     Py_DECREF(msg);
     return SUCCESS;
 }
+
+
+static int
+compiler_safe_subscript(struct compiler *c, expr_ty e)
+{
+    location loc = LOC(e);
+    if (e->v.SafeSubscript.ctx != Load) {
+        // Only loading should be allowed. Not assignent or deletion.
+        return ERROR;
+    }
+    RETURN_IF_ERROR(check_safe_subscripter(c, e->v.SafeSubscript.value));
+    RETURN_IF_ERROR(check_index(c, e->v.SafeSubscript.value, e->v.SafeSubscript.slice));
+
+    // Evaluate the object (a in a?[b]) and put it on the top of the stack
+    VISIT(c, expr, e->v.SafeSubscript.value);
+
+    NEW_JUMP_TARGET_LABEL(c, end);
+
+    // Copy a on the stack
+    ADDOP_I(c, LOC(e), COPY, 1);
+    // Load None onto the stack
+    ADDOP_LOAD_CONST(c, LOC(e), Py_None);
+    // Compare the top two items on the stack replaces them with the result of that comparison
+    ADDOP_I(c, LOC(e), IS_OP, 0);
+    // Jump to end if the last thing on the stack is true
+    ADDOP_JUMP(c, LOC(e), POP_JUMP_IF_TRUE, end);
+
+    if (is_two_element_slice(e->v.SafeSubscript.slice)) {
+        RETURN_IF_ERROR(compiler_slice(c, e->v.SafeSubscript.slice));
+    }
+    else {
+        VISIT(c, expr, e->v.SafeSubscript.slice);
+    }
+    ADDOP(c, loc, BINARY_SUBSCR);
+
+    // Label for the end of the expression
+    USE_LABEL(c, end);
+
+    return SUCCESS;
+}
+
 
 static int
 compiler_subscript(struct compiler *c, expr_ty e)

@@ -797,6 +797,11 @@ astfold_expr(expr_ty node_, PyArena *ctx_, _PyASTOptimizeState *state)
         CALL(astfold_expr, expr_ty, node_->v.Subscript.slice);
         CALL(fold_subscr, expr_ty, node_);
         break;
+    case SafeSubscript_kind:
+        CALL(astfold_expr, expr_ty, node_->v.SafeSubscript.value);
+        CALL(astfold_expr, expr_ty, node_->v.SafeSubscript.slice);
+        CALL(fold_subscr, expr_ty, node_);
+        break;
     case Starred_kind:
         CALL(astfold_expr, expr_ty, node_->v.Starred.value);
         break;

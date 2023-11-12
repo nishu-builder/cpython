@@ -55,6 +55,7 @@ ELLIPSIS                '...'
 COLONEQUAL              ':='
 EXCLAMATION             '!'
 QUESTIONMARKDOT         '?.'
+QUESTIONMARKLSQB        '?['
 
 OP
 TYPE_IGNORE

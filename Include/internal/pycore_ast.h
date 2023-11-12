@@ -369,8 +369,8 @@ enum _expr_kind {BoolOp_kind=1, NamedExpr_kind=2, BinOp_kind=3, UnaryOp_kind=4,
                   YieldFrom_kind=15, Compare_kind=16, Call_kind=17,
                   FormattedValue_kind=18, JoinedStr_kind=19, Constant_kind=20,
                   Attribute_kind=21, SafeAttribute_kind=22, Subscript_kind=23,
-                  Starred_kind=24, Name_kind=25, List_kind=26, Tuple_kind=27,
-                  Slice_kind=28};
+                  SafeSubscript_kind=24, Starred_kind=25, Name_kind=26,
+                  List_kind=27, Tuple_kind=28, Slice_kind=29};
 struct _expr {
     enum _expr_kind kind;
     union {
@@ -492,6 +492,12 @@ struct _expr {
             expr_ty slice;
             expr_context_ty ctx;
         } Subscript;
+
+        struct {
+            expr_ty value;
+            expr_ty slice;
+            expr_context_ty ctx;
+        } SafeSubscript;
 
         struct {
             expr_ty value;
@@ -847,6 +853,9 @@ expr_ty _PyAST_SafeAttribute(expr_ty value, identifier attr, expr_context_ty
 expr_ty _PyAST_Subscript(expr_ty value, expr_ty slice, expr_context_ty ctx, int
                          lineno, int col_offset, int end_lineno, int
                          end_col_offset, PyArena *arena);
+expr_ty _PyAST_SafeSubscript(expr_ty value, expr_ty slice, expr_context_ty ctx,
+                             int lineno, int col_offset, int end_lineno, int
+                             end_col_offset, PyArena *arena);
 expr_ty _PyAST_Starred(expr_ty value, expr_context_ty ctx, int lineno, int
                        col_offset, int end_lineno, int end_col_offset, PyArena
                        *arena);

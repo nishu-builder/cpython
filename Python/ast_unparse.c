@@ -819,6 +819,15 @@ append_ast_subscript(_PyUnicodeWriter *writer, expr_ty e)
 }
 
 static int
+append_ast_safe_subscript(_PyUnicodeWriter *writer, expr_ty e)
+{
+    APPEND_EXPR(e->v.SafeSubscript.value, PR_ATOM);
+    APPEND_STR("?[");
+    APPEND_EXPR(e->v.SafeSubscript.slice, PR_TUPLE);
+    APPEND_STR_FINISH("]");
+}
+
+static int
 append_ast_starred(_PyUnicodeWriter *writer, expr_ty e)
 {
     APPEND_STR("*");
@@ -923,6 +932,8 @@ append_ast_expr(_PyUnicodeWriter *writer, expr_ty e, int level)
         return append_ast_safe_attribute(writer, e);
     case Subscript_kind:
         return append_ast_subscript(writer, e);
+    case SafeSubscript_kind:
+        return append_ast_safe_subscript(writer, e);
     case Starred_kind:
         return append_ast_starred(writer, e);
     case Slice_kind:
