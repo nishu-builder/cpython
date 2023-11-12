@@ -323,15 +323,6 @@ _set_attribute_context(Parser *p, expr_ty e, expr_context_ty ctx)
                             ctx, EXTRA_EXPR(e, e));
 }
 
-
-static expr_ty
-_set_safe_attribute_context(Parser *p, expr_ty e, expr_context_ty ctx)
-{
-    return _PyAST_SafeAttribute(e->v.SafeAttribute.value, e->v.SafeAttribute.attr,
-                                ctx, EXTRA_EXPR(e, e));
-}
-
-
 static expr_ty
 _set_starred_context(Parser *p, expr_ty e, expr_context_ty ctx)
 {
@@ -361,9 +352,6 @@ _PyPegen_set_expr_context(Parser *p, expr_ty expr, expr_context_ty ctx)
             break;
         case Attribute_kind:
             new = _set_attribute_context(p, expr, ctx);
-            break;
-        case SafeAttribute_kind:
-            new = _set_safe_attribute_context(p, expr, ctx);
             break;
         case Starred_kind:
             new = _set_starred_context(p, expr, ctx);
@@ -1054,8 +1042,6 @@ _PyPegen_get_expr_name(expr_ty e)
     switch (e->kind) {
         case Attribute_kind:
             return "attribute";
-        case SafeAttribute_kind:
-            return "safe attribute";
         case Subscript_kind:
             return "subscript";
         case Starred_kind:
@@ -1218,7 +1204,6 @@ _PyPegen_get_invalid_target(expr_ty e, TARGETS_TYPE targets_type)
         case Name_kind:
         case Subscript_kind:
         case Attribute_kind:
-        case SafeAttribute_kind:
             return NULL;
         default:
             return e;

@@ -3195,13 +3195,13 @@ compiler_boolean_eval_loop(struct compiler *c, stmt_ty s, int continue_if_test)
 static int
 compiler_until(struct compiler *c, stmt_ty s)
 {
-    return compiler_boolean_eval_loop(c, s, 0);
+    compiler_boolean_eval_loop(c, s, 0);
 }
 
 static int
 compiler_while(struct compiler *c, stmt_ty s)
 {
-    return compiler_boolean_eval_loop(c, s, 1);
+    compiler_boolean_eval_loop(c, s, 1);
 }
 
 static int
@@ -4898,7 +4898,6 @@ load_args_for_super(struct compiler *c, expr_ty e) {
     return SUCCESS;
 }
 
-// NOTE: Should probably do this for ?.
 // If an attribute access spans multiple lines, update the current start
 // location to point to the attribute name.
 static location
@@ -4927,33 +4926,6 @@ update_start_location_to_match_attr(struct compiler *c, location loc,
     return loc;
 }
 
-static location
-update_start_location_to_match_safe_attr(struct compiler *c, location loc,
-                                    expr_ty attr)
-{
-    assert(attr->kind == SafeAttribute_kind);
-    if (loc.lineno != attr->end_lineno) {
-        loc.lineno = attr->end_lineno;
-        int len = (int)PyUnicode_GET_LENGTH(attr->v.SafeAttribute.attr);
-        if (len <= attr->end_col_offset) {
-            loc.col_offset = attr->end_col_offset - len;
-        }
-        else {
-            // GH-94694: Somebody's compiling weird ASTs. Just drop the columns:
-            loc.col_offset = -1;
-            loc.end_col_offset = -1;
-        }
-        // Make sure the end position still follows the start position, even for
-        // weird ASTs:
-        loc.end_lineno = Py_MAX(loc.lineno, loc.end_lineno);
-        if (loc.lineno == loc.end_lineno) {
-            loc.end_col_offset = Py_MAX(loc.col_offset, loc.end_col_offset);
-        }
-    }
-    return loc;
-}
-
-// NOTE: Maybe want to support SafeAttr here
 // Return 1 if the method call was optimized, 0 if not, and -1 on error.
 static int
 maybe_optimize_method_call(struct compiler *c, expr_ty e)
@@ -6282,36 +6254,6 @@ compiler_visit_expr1(struct compiler *c, expr_ty e)
     case FormattedValue_kind:
         return compiler_formatted_value(c, e);
     /* The following exprs can be assignment targets. */
-    case SafeAttribute_kind:
-        // TODO: Maybe do the can-optimize-call stuff
-        if (e->v.SafeAttribute.ctx != Load) {
-            // Only loading should be allowed. Not assignent or deletion.
-            return ERROR;
-        }
-
-        // Evaluate the object (a in a?.b) and put it on the top of the stack
-        VISIT(c, expr, e->v.SafeAttribute.value);
-
-        NEW_JUMP_TARGET_LABEL(c, end);
-
-         // Copy e on the stack
-        ADDOP_I(c, LOC(e), COPY, 1);
-        // Load None onto the stack
-        ADDOP_LOAD_CONST(c, LOC(e), Py_None);
-        // Compare the top two items on the stack replaces them with the result of that comparison
-        ADDOP_I(c, LOC(e), IS_OP, 0);
-        // Jump to end if the last thing on the stack is true
-        ADDOP_JUMP(c, loc, POP_JUMP_IF_TRUE, end);
-
-        // If we did not jump, then
-        ADDOP_NAME(c, loc, LOAD_ATTR, e->v.SafeAttribute.attr, names); // Load attribute
-
-        // In the case where the value was None, None is still on the top of the stack
-
-        USE_LABEL(c, end);
-        loc = LOC(e);
-        loc = update_start_location_to_match_safe_attr(c, loc, e);
-        break;
     case Attribute_kind:
         if (e->v.Attribute.ctx == Load && can_optimize_super_call(c, e)) {
             RETURN_IF_ERROR(load_args_for_super(c, e->v.Attribute.value));
@@ -6322,22 +6264,11 @@ compiler_visit_expr1(struct compiler *c, expr_ty e)
             ADDOP(c, loc, NOP);
             return SUCCESS;
         }
-
-        // Processes the e->v.Attribute.value, which is the object whose attribute is being accessed
-        // (e.g., a in a.b). Generates bytecode to evaluate this expression and leaves
-        // its result on top of the stack.
         VISIT(c, expr, e->v.Attribute.value);
-
-        // Updates the location information (line number and column offset) in the compiler's state
-        // to correspond to the attribute expression. This is used for error reporting and debugging
         loc = LOC(e);
         loc = update_start_location_to_match_attr(c, loc, e);
-
         switch (e->v.Attribute.ctx) {
         case Load:
-            // Instruction for PVM to access the attribute (b in a.b) of the object that is currently
-            // on top of the stack. The LOAD_ATTR operation will replace the object a with its
-            // attribute b on the top of the stack
             ADDOP_NAME(c, loc, LOAD_ATTR, e->v.Attribute.attr, names);
             break;
         case Store:
@@ -6412,8 +6343,6 @@ compiler_augassign(struct compiler *c, stmt_ty s)
         loc = update_start_location_to_match_attr(c, loc, e);
         ADDOP_NAME(c, loc, LOAD_ATTR, e->v.Attribute.attr, names);
         break;
-    // NOTE: Do not need the target to be safe-attr-able.
-    // e.g. a?.b *= 4 should not be allowed.
     case Subscript_kind:
         VISIT(c, expr, e->v.Subscript.value);
         if (is_two_element_slice(e->v.Subscript.slice)) {
@@ -6452,11 +6381,6 @@ compiler_augassign(struct compiler *c, stmt_ty s)
         loc = update_start_location_to_match_attr(c, loc, e);
         ADDOP_I(c, loc, SWAP, 2);
         ADDOP_NAME(c, loc, STORE_ATTR, e->v.Attribute.attr, names);
-        break;
-    case SafeAttribute_kind:
-        loc = update_start_location_to_match_safe_attr(c, loc, e);
-        ADDOP_I(c, loc, SWAP, 2);
-        ADDOP_NAME(c, loc, STORE_ATTR, e->v.SafeAttribute.attr, names);
         break;
     case Subscript_kind:
         if (is_two_element_slice(e->v.Subscript.slice)) {
@@ -6575,15 +6499,6 @@ compiler_annassign(struct compiler *c, stmt_ty s)
         }
         if (!s->v.AnnAssign.value &&
             check_ann_expr(c, targ->v.Attribute.value) < 0) {
-            return ERROR;
-        }
-        break;
-    case SafeAttribute_kind:
-        if (forbidden_name(c, loc, targ->v.SafeAttribute.attr, Store)) {
-            return ERROR;
-        }
-        if (!s->v.AnnAssign.value &&
-            check_ann_expr(c, targ->v.SafeAttribute.value) < 0) {
             return ERROR;
         }
         break;
@@ -6758,7 +6673,6 @@ compiler_slice(struct compiler *c, expr_ty s)
     ((N)->kind == MatchStar_kind && !(N)->v.MatchStar.name)
 
 // Limit permitted subexpressions, even if the parser & AST validator let them through
-// NOTE: Should include SafeAttribute_kind if we add support for match cases
 #define MATCH_VALUE_EXPR(N) \
     ((N)->kind == Constant_kind || (N)->kind == Attribute_kind)
 
@@ -7159,7 +7073,6 @@ compiler_pattern_mapping(struct compiler *c, pattern_ty p,
             }
         }
 
-        // NOTE: would add SafeAttribute_kind here if we add support for it for match cases
         else if (key->kind != Attribute_kind) {
             const char *e = "mapping pattern keys may only match literals and attribute lookups";
             compiler_error(c, LOC(p), e);
