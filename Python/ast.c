@@ -226,6 +226,9 @@ validate_expr(struct validator *state, expr_ty exp, expr_context_ty ctx)
     case Attribute_kind:
         actual_ctx = exp->v.Attribute.ctx;
         break;
+    case SafeAttribute_kind:
+        actual_ctx = exp->v.SafeAttribute.ctx;
+        break;
     case Subscript_kind:
         actual_ctx = exp->v.Subscript.ctx;
         break;
@@ -361,6 +364,9 @@ validate_expr(struct validator *state, expr_ty exp, expr_context_ty ctx)
         break;
     case Attribute_kind:
         ret = validate_expr(state, exp->v.Attribute.value, Load);
+        break;
+    case SafeAttribute_kind:
+        ret = validate_expr(state, exp->v.SafeAttribute.value, Load);
         break;
     case Subscript_kind:
         ret = validate_expr(state, exp->v.Subscript.slice, Load) &&
@@ -500,6 +506,7 @@ validate_pattern_match_value(struct validator *state, expr_ty exp)
                             "unexpected constant inside of a literal pattern");
             return 0;
         case Attribute_kind:
+        case SafeAttribute_kind:
             // Constants and attribute lookups are always permitted
             return 1;
         case UnaryOp_kind:
