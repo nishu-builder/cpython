@@ -317,6 +317,13 @@ _set_subscript_context(Parser *p, expr_ty e, expr_context_ty ctx)
 }
 
 static expr_ty
+_set_safe_subscript_context(Parser *p, expr_ty e, expr_context_ty ctx)
+{
+    return _PyAST_Subscript(e->v.SafeSubscript.value, e->v.SafeSubscript.slice,
+                            ctx, EXTRA_EXPR(e, e));
+}
+
+static expr_ty
 _set_attribute_context(Parser *p, expr_ty e, expr_context_ty ctx)
 {
     return _PyAST_Attribute(e->v.Attribute.value, e->v.Attribute.attr,
@@ -358,6 +365,9 @@ _PyPegen_set_expr_context(Parser *p, expr_ty expr, expr_context_ty ctx)
             break;
         case Subscript_kind:
             new = _set_subscript_context(p, expr, ctx);
+            break;
+        case SafeSubscript_kind:
+            new = _set_safe_subscript_context(p, expr, ctx);
             break;
         case Attribute_kind:
             new = _set_attribute_context(p, expr, ctx);
@@ -1058,6 +1068,8 @@ _PyPegen_get_expr_name(expr_ty e)
             return "safe attribute";
         case Subscript_kind:
             return "subscript";
+        case SafeSubscript_kind:
+            return "safe subscript";
         case Starred_kind:
             return "starred";
         case Name_kind:
@@ -1217,6 +1229,7 @@ _PyPegen_get_invalid_target(expr_ty e, TARGETS_TYPE targets_type)
             return e;
         case Name_kind:
         case Subscript_kind:
+        case SafeSubscript_kind:
         case Attribute_kind:
         case SafeAttribute_kind:
             return NULL;

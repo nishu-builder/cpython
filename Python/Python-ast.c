@@ -139,6 +139,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->Raise_type);
     Py_CLEAR(state->Return_type);
     Py_CLEAR(state->SafeAttribute_type);
+    Py_CLEAR(state->SafeSubscript_type);
     Py_CLEAR(state->SetComp_type);
     Py_CLEAR(state->Set_type);
     Py_CLEAR(state->Slice_type);
@@ -640,6 +641,11 @@ static const char * const SafeAttribute_fields[]={
     "ctx",
 };
 static const char * const Subscript_fields[]={
+    "value",
+    "slice",
+    "ctx",
+};
+static const char * const SafeSubscript_fields[]={
     "value",
     "slice",
     "ctx",
@@ -1391,6 +1397,7 @@ init_types(struct ast_state *state)
         "     | Attribute(expr value, identifier attr, expr_context ctx)\n"
         "     | SafeAttribute(expr value, identifier attr, expr_context ctx)\n"
         "     | Subscript(expr value, expr slice, expr_context ctx)\n"
+        "     | SafeSubscript(expr value, expr slice, expr_context ctx)\n"
         "     | Starred(expr value, expr_context ctx)\n"
         "     | Name(identifier id, expr_context ctx)\n"
         "     | List(expr* elts, expr_context ctx)\n"
@@ -1504,6 +1511,11 @@ init_types(struct ast_state *state)
                                       Subscript_fields, 3,
         "Subscript(expr value, expr slice, expr_context ctx)");
     if (!state->Subscript_type) return 0;
+    state->SafeSubscript_type = make_type(state, "SafeSubscript",
+                                          state->expr_type,
+                                          SafeSubscript_fields, 3,
+        "SafeSubscript(expr value, expr slice, expr_context ctx)");
+    if (!state->SafeSubscript_type) return 0;
     state->Starred_type = make_type(state, "Starred", state->expr_type,
                                     Starred_fields, 2,
         "Starred(expr value, expr_context ctx)");
@@ -3323,6 +3335,41 @@ _PyAST_Subscript(expr_ty value, expr_ty slice, expr_context_ty ctx, int lineno,
 }
 
 expr_ty
+_PyAST_SafeSubscript(expr_ty value, expr_ty slice, expr_context_ty ctx, int
+                     lineno, int col_offset, int end_lineno, int
+                     end_col_offset, PyArena *arena)
+{
+    expr_ty p;
+    if (!value) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'value' is required for SafeSubscript");
+        return NULL;
+    }
+    if (!slice) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'slice' is required for SafeSubscript");
+        return NULL;
+    }
+    if (!ctx) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'ctx' is required for SafeSubscript");
+        return NULL;
+    }
+    p = (expr_ty)_PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = SafeSubscript_kind;
+    p->v.SafeSubscript.value = value;
+    p->v.SafeSubscript.slice = slice;
+    p->v.SafeSubscript.ctx = ctx;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    p->end_lineno = end_lineno;
+    p->end_col_offset = end_col_offset;
+    return p;
+}
+
+expr_ty
 _PyAST_Starred(expr_ty value, expr_context_ty ctx, int lineno, int col_offset,
                int end_lineno, int end_col_offset, PyArena *arena)
 {
@@ -4948,6 +4995,26 @@ ast2obj_expr(struct ast_state *state, void* _o)
             goto failed;
         Py_DECREF(value);
         value = ast2obj_expr_context(state, o->v.Subscript.ctx);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->ctx, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case SafeSubscript_kind:
+        tp = (PyTypeObject *)state->SafeSubscript_type;
+        result = PyType_GenericNew(tp, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_expr(state, o->v.SafeSubscript.value);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->value, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, o->v.SafeSubscript.slice);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->slice, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr_context(state, o->v.SafeSubscript.ctx);
         if (!value) goto failed;
         if (PyObject_SetAttr(result, state->ctx, value) == -1)
             goto failed;
@@ -10406,6 +10473,72 @@ obj2ast_expr(struct ast_state *state, PyObject* obj, expr_ty* out, PyArena*
         if (*out == NULL) goto failed;
         return 0;
     }
+    tp = state->SafeSubscript_type;
+    isinstance = PyObject_IsInstance(obj, tp);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        expr_ty value;
+        expr_ty slice;
+        expr_context_ty ctx;
+
+        if (PyObject_GetOptionalAttr(obj, state->value, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"value\" missing from SafeSubscript");
+            return 1;
+        }
+        else {
+            int res;
+            if (_Py_EnterRecursiveCall(" while traversing 'SafeSubscript' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &value, arena);
+            _Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (PyObject_GetOptionalAttr(obj, state->slice, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"slice\" missing from SafeSubscript");
+            return 1;
+        }
+        else {
+            int res;
+            if (_Py_EnterRecursiveCall(" while traversing 'SafeSubscript' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &slice, arena);
+            _Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (PyObject_GetOptionalAttr(obj, state->ctx, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"ctx\" missing from SafeSubscript");
+            return 1;
+        }
+        else {
+            int res;
+            if (_Py_EnterRecursiveCall(" while traversing 'SafeSubscript' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr_context(state, tmp, &ctx, arena);
+            _Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        *out = _PyAST_SafeSubscript(value, slice, ctx, lineno, col_offset,
+                                    end_lineno, end_col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
     tp = state->Starred_type;
     isinstance = PyObject_IsInstance(obj, tp);
     if (isinstance == -1) {
@@ -13139,6 +13272,10 @@ astmodule_exec(PyObject *m)
         return -1;
     }
     if (PyModule_AddObjectRef(m, "Subscript", state->Subscript_type) < 0) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(m, "SafeSubscript", state->SafeSubscript_type) <
+        0) {
         return -1;
     }
     if (PyModule_AddObjectRef(m, "Starred", state->Starred_type) < 0) {

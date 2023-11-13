@@ -232,6 +232,9 @@ validate_expr(struct validator *state, expr_ty exp, expr_context_ty ctx)
     case Subscript_kind:
         actual_ctx = exp->v.Subscript.ctx;
         break;
+    case SafeSubscript_kind:
+        actual_ctx = exp->v.SafeSubscript.ctx;
+        break;
     case Starred_kind:
         actual_ctx = exp->v.Starred.ctx;
         break;
@@ -371,6 +374,10 @@ validate_expr(struct validator *state, expr_ty exp, expr_context_ty ctx)
     case Subscript_kind:
         ret = validate_expr(state, exp->v.Subscript.slice, Load) &&
             validate_expr(state, exp->v.Subscript.value, Load);
+        break;
+    case SafeSubscript_kind:
+        ret = validate_expr(state, exp->v.SafeSubscript.slice, Load) &&
+            validate_expr(state, exp->v.SafeSubscript.value, Load);
         break;
     case Starred_kind:
         ret = validate_expr(state, exp->v.Starred.value, ctx);

@@ -2237,6 +2237,10 @@ symtable_visit_expr(struct symtable *st, expr_ty e)
         VISIT(st, expr, e->v.Subscript.value);
         VISIT(st, expr, e->v.Subscript.slice);
         break;
+    case SafeSubscript_kind:
+        VISIT(st, expr, e->v.SafeSubscript.value);
+        VISIT(st, expr, e->v.SafeSubscript.slice);
+        break;
     case Starred_kind:
         VISIT(st, expr, e->v.Starred.value);
         break;

@@ -209,6 +209,10 @@
 
    Token value for ``"?."``.
 
+.. data:: QUESTIONMARKLSQB
+
+   Token value for ``"?["``.
+
 .. data:: OP
 
 .. data:: TYPE_IGNORE

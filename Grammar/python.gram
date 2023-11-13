@@ -830,6 +830,7 @@ primary[expr_ty]:
                  (b) ? ((expr_ty) b)->v.Call.keywords : NULL,
                  EXTRA) }
     | a=primary '[' b=slices ']' { _PyAST_Subscript(a, b, Load, EXTRA) }
+    | a=primary '?[' b=slices ']' { _PyAST_SafeSubscript(a, b, Load, EXTRA) }
     | atom
 
 slices[expr_ty]:
