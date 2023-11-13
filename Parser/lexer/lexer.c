@@ -362,6 +362,19 @@ tok_continuation_line(struct tok_state *tok) {
     return c;
 }
 
+
+static void
+increment_parentheses_level(struct tok_state *tok, tokenizer_mode* current_tok, char c) {
+    tok->parenstack[tok->level] = c;
+    tok->parenlinenostack[tok->level] = tok->lineno;
+    tok->parencolstack[tok->level] = (int)(tok->start - tok->line_start);
+    tok->level++;
+    if (INSIDE_FSTRING(tok)) {
+        current_tok->curly_bracket_depth++;
+    }
+}
+
+
 static int
 tok_get_normal_mode(struct tok_state *tok, tokenizer_mode* current_tok, struct token *token)
 {
@@ -1124,6 +1137,12 @@ tok_get_normal_mode(struct tok_state *tok, tokenizer_mode* current_tok, struct t
             }
             p_start = tok->start;
             p_end = tok->cur;
+            if (current_token == QUESTIONMARKLSQB) {
+                if (tok->level >= MAXLEVEL) {
+                    return MAKE_TOKEN(_PyTokenizer_syntaxerror(tok, "too many nested parentheses"));
+                }
+                increment_parentheses_level(tok, current_tok, '[');
+            }
             return MAKE_TOKEN(current_token);
         }
         tok_backup(tok, c2);
@@ -1137,13 +1156,7 @@ tok_get_normal_mode(struct tok_state *tok, tokenizer_mode* current_tok, struct t
         if (tok->level >= MAXLEVEL) {
             return MAKE_TOKEN(_PyTokenizer_syntaxerror(tok, "too many nested parentheses"));
         }
-        tok->parenstack[tok->level] = c;
-        tok->parenlinenostack[tok->level] = tok->lineno;
-        tok->parencolstack[tok->level] = (int)(tok->start - tok->line_start);
-        tok->level++;
-        if (INSIDE_FSTRING(tok)) {
-            current_tok->curly_bracket_depth++;
-        }
+        increment_parentheses_level(tok, current_tok, c);
         break;
     case ')':
     case ']':
