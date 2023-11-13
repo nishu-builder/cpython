@@ -869,6 +869,7 @@ list_map(PyListObject *self, PyObject *func)
     for (int i = 0; i < len; i++) {
         PyObject *item = PyList_GET_ITEM(self, i);
         PyObject *mapped_item = PyObject_CallFunctionObjArgs(func, item, NULL);
+        // NULL is returned in the case of an error
         if (mapped_item == NULL) {
             Py_DECREF(result);
             return NULL;
@@ -877,6 +878,107 @@ list_map(PyListObject *self, PyObject *func)
     }
     return result;
 }
+
+
+/*[clinic input]
+list.reduce
+
+    function: object
+    initial: object = None
+    /
+
+Apply function of two arguments cumulatively to the items of the list.
+[clinic start generated code]*/
+
+static PyObject *
+list_reduce_impl(PyListObject *self, PyObject *function, PyObject *initial)
+/*[clinic end generated code: output=78ed34953132c4b1 input=50be0e0af4344115]*/
+{
+    Py_ssize_t len = PyList_GET_SIZE(self);
+    Py_ssize_t remaining_items_to_consider;
+    PyObject *accumulator;
+    bool initial_value_provided = initial != Py_None;
+    if (initial_value_provided) {
+        // Increment the reference count of initial by 1 and set the accumulator to initial
+        Py_INCREF(initial);
+        accumulator = initial;
+        remaining_items_to_consider = len;
+    } else {
+        if (remaining_items_to_consider == 0) {
+            PyErr_SetString(PyExc_TypeError, "reduce of empty sequence with no initial value");
+            return NULL;
+        }
+        // Create a new reference for the accumulator set to the first value in the list
+        accumulator = Py_NewRef(PyList_GET_ITEM(self, 0));
+        remaining_items_to_consider = len - 1;
+    }
+
+    while (remaining_items_to_consider > 0) {
+        // Consider elements left-to-right in case the function is app-state-modifying in some way
+        // (left-to-right is likely the default order expected by users)
+        PyObject *item = PyList_GET_ITEM(self, len - remaining_items_to_consider);
+        remaining_items_to_consider --;
+        PyObject *result = PyObject_CallFunctionObjArgs(function, accumulator, item, NULL);
+        if (result == NULL) {
+            Py_DECREF(accumulator);
+            return NULL;
+        }
+        Py_SETREF(accumulator, result);
+    }
+    return accumulator;
+}
+
+
+/*[clinic input]
+list.filter
+
+     predicate: object
+     /
+
+Return a new list containing all items from the list for which predicate(item) is true.
+[clinic start generated code]*/
+
+static PyObject *
+list_filter(PyListObject *self, PyObject *predicate)
+/*[clinic end generated code: output=d87f0d3b87d4769c input=9f54584458f96cff]*/
+{
+    // Start out with an empty list
+    PyObject *result = PyList_New(0);
+
+    // If we failed to allocate the list, return NULL (error case)
+    if (result == NULL) {
+        return NULL;
+    }
+
+    Py_ssize_t len = PyList_GET_SIZE(self);
+    for (int i = 0; i < len; i++) {
+        PyObject *item = PyList_GET_ITEM(self, i);
+        PyObject *keep = PyObject_CallFunctionObjArgs(predicate, item, NULL);
+
+        // Propagate error in error case
+        if (keep == NULL) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        int is_true = PyObject_IsTrue(keep);
+        Py_DECREF(keep); // No longer need access to the keep python ojbject
+
+        // Another error case
+        if (is_true < 0) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        if (is_true) {
+            // Another error case
+            if (PyList_Append(result, item) < 0) {
+                Py_DECREF(result);
+                return NULL;
+            }
+        }
+    }
+    return result;
+}
+
 
 /*[clinic input]
 list.extend
@@ -2885,6 +2987,8 @@ static PyMethodDef list_methods[] = {
     LIST_COPY_METHODDEF
     LIST_APPEND_METHODDEF
     LIST_MAP_METHODDEF
+    LIST_REDUCE_METHODDEF
+    LIST_FILTER_METHODDEF
     LIST_INSERT_METHODDEF
     LIST_EXTEND_METHODDEF
     LIST_POP_METHODDEF

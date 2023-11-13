@@ -104,6 +104,49 @@ PyDoc_STRVAR(list_map__doc__,
 #define LIST_MAP_METHODDEF    \
     {"map", (PyCFunction)list_map, METH_O, list_map__doc__},
 
+PyDoc_STRVAR(list_reduce__doc__,
+"reduce($self, function, initial=None, /)\n"
+"--\n"
+"\n"
+"Apply function of two arguments cumulatively to the items of the list.");
+
+#define LIST_REDUCE_METHODDEF    \
+    {"reduce", _PyCFunction_CAST(list_reduce), METH_FASTCALL, list_reduce__doc__},
+
+static PyObject *
+list_reduce_impl(PyListObject *self, PyObject *function, PyObject *initial);
+
+static PyObject *
+list_reduce(PyListObject *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    PyObject *return_value = NULL;
+    PyObject *function;
+    PyObject *initial = Py_None;
+
+    if (!_PyArg_CheckPositional("reduce", nargs, 1, 2)) {
+        goto exit;
+    }
+    function = args[0];
+    if (nargs < 2) {
+        goto skip_optional;
+    }
+    initial = args[1];
+skip_optional:
+    return_value = list_reduce_impl(self, function, initial);
+
+exit:
+    return return_value;
+}
+
+PyDoc_STRVAR(list_filter__doc__,
+"filter($self, predicate, /)\n"
+"--\n"
+"\n"
+"Return a new list containing all items from the list for which predicate(item) is true.");
+
+#define LIST_FILTER_METHODDEF    \
+    {"filter", (PyCFunction)list_filter, METH_O, list_filter__doc__},
+
 PyDoc_STRVAR(list_extend__doc__,
 "extend($self, iterable, /)\n"
 "--\n"
@@ -393,4 +436,4 @@ list___reversed__(PyListObject *self, PyObject *Py_UNUSED(ignored))
 {
     return list___reversed___impl(self);
 }
-/*[clinic end generated code: output=6d3df555749914ff input=a9049054013a1b77]*/
+/*[clinic end generated code: output=6b67a03e76d90f57 input=a9049054013a1b77]*/
