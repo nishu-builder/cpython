@@ -846,6 +846,38 @@ list_append(PyListObject *self, PyObject *object)
     Py_RETURN_NONE;
 }
 
+
+/*[clinic input]
+list.map
+
+     func: object
+     /
+
+Map a function over a list
+[clinic start generated code]*/
+
+static PyObject *
+list_map(PyListObject *self, PyObject *func)
+/*[clinic end generated code: output=7335847e099f8b68 input=81031f2e44bdf0a8]*/
+{
+    Py_ssize_t len = PyList_GET_SIZE(self);
+    PyObject *result = PyList_New(len);
+    if (result == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < len; i++) {
+        PyObject *item = PyList_GET_ITEM(self, i);
+        PyObject *mapped_item = PyObject_CallFunctionObjArgs(func, item, NULL);
+        if (mapped_item == NULL) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        PyList_SET_ITEM(result, i, mapped_item);
+    }
+    return result;
+}
+
 /*[clinic input]
 list.extend
 
@@ -2852,6 +2884,7 @@ static PyMethodDef list_methods[] = {
     LIST_CLEAR_METHODDEF
     LIST_COPY_METHODDEF
     LIST_APPEND_METHODDEF
+    LIST_MAP_METHODDEF
     LIST_INSERT_METHODDEF
     LIST_EXTEND_METHODDEF
     LIST_POP_METHODDEF

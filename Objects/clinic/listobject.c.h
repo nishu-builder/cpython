@@ -95,6 +95,15 @@ PyDoc_STRVAR(list_append__doc__,
 #define LIST_APPEND_METHODDEF    \
     {"append", (PyCFunction)list_append, METH_O, list_append__doc__},
 
+PyDoc_STRVAR(list_map__doc__,
+"map($self, func, /)\n"
+"--\n"
+"\n"
+"Map a function over a list");
+
+#define LIST_MAP_METHODDEF    \
+    {"map", (PyCFunction)list_map, METH_O, list_map__doc__},
+
 PyDoc_STRVAR(list_extend__doc__,
 "extend($self, iterable, /)\n"
 "--\n"
@@ -384,4 +393,4 @@ list___reversed__(PyListObject *self, PyObject *Py_UNUSED(ignored))
 {
     return list___reversed___impl(self);
 }
-/*[clinic end generated code: output=5dea9dd3bb219a7f input=a9049054013a1b77]*/
+/*[clinic end generated code: output=6d3df555749914ff input=a9049054013a1b77]*/
