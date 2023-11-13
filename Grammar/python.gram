@@ -359,12 +359,23 @@ if_stmt[stmt_ty]:
     | invalid_if_stmt
     | 'if' a=named_expression ':' b=block c=elif_stmt {
         _PyAST_If(a, b, CHECK(asdl_stmt_seq*, _PyPegen_singleton_seq(p, c)), EXTRA) }
+    | 'if' a=named_expression ':' b=block c=elifnt_stmt {
+        _PyAST_If(a, b, CHECK(asdl_stmt_seq*, _PyPegen_singleton_seq(p, c)), EXTRA) }
     | 'if' a=named_expression ':' b=block c=[else_block] { _PyAST_If(a, b, c, EXTRA) }
 elif_stmt[stmt_ty]:
     | invalid_elif_stmt
     | 'elif' a=named_expression ':' b=block c=elif_stmt {
         _PyAST_If(a, b, CHECK(asdl_stmt_seq*, _PyPegen_singleton_seq(p, c)), EXTRA) }
+    | 'elif' a=named_expression ':' b=block c=elifnt_stmt {
+        _PyAST_If(a, b, CHECK(asdl_stmt_seq*, _PyPegen_singleton_seq(p, c)), EXTRA) }
     | 'elif' a=named_expression ':' b=block c=[else_block] { _PyAST_If(a, b, c, EXTRA) }
+elifnt_stmt[stmt_ty]:
+    | invalid_elifnt_stmt
+    | 'elifnt' a=named_expression ':' b=block c=elif_stmt {
+        _PyAST_If(a, CHECK(asdl_stmt_seq*, _PyPegen_singleton_seq(p, c)), b, EXTRA) }
+    | 'elifnt' a=named_expression ':' b=block c=elifnt_stmt {
+        _PyAST_If(a, CHECK(asdl_stmt_seq*, _PyPegen_singleton_seq(p, c)), b, EXTRA) }
+    | 'elifnt' a=named_expression ':' b=block c=[else_block] { _PyAST_If(a, c, b, EXTRA) }
 else_block[asdl_stmt_seq*]:
     | invalid_else_stmt
     | 'else' &&':' b=block { b }
