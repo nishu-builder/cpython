@@ -813,10 +813,10 @@ validate_stmt(struct validator *state, stmt_ty stmt)
             validate_body(state, stmt->v.While.body, "While") &&
             validate_stmts(state, stmt->v.While.orelse);
         break;
-    case Until_kind:
-        ret = validate_expr(state, stmt->v.Until.test, Load) &&
-            validate_body(state, stmt->v.Until.body, "Until") &&
-            validate_stmts(state, stmt->v.Until.orelse);
+    case Till_kind:
+        ret = validate_expr(state, stmt->v.Till.test, Load) &&
+            validate_body(state, stmt->v.Till.body, "Till") &&
+            validate_stmts(state, stmt->v.Till.orelse);
         break;
     case If_kind:
         ret = validate_expr(state, stmt->v.If.test, Load) &&

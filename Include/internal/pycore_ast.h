@@ -187,7 +187,7 @@ struct _mod {
 enum _stmt_kind {FunctionDef_kind=1, AsyncFunctionDef_kind=2, ClassDef_kind=3,
                   Return_kind=4, Delete_kind=5, Assign_kind=6,
                   TypeAlias_kind=7, AugAssign_kind=8, AnnAssign_kind=9,
-                  For_kind=10, AsyncFor_kind=11, While_kind=12, Until_kind=13,
+                  For_kind=10, AsyncFor_kind=11, While_kind=12, Till_kind=13,
                   If_kind=14, With_kind=15, AsyncWith_kind=16, Match_kind=17,
                   Raise_kind=18, Try_kind=19, TryStar_kind=20, Assert_kind=21,
                   Import_kind=22, ImportFrom_kind=23, Global_kind=24,
@@ -284,7 +284,7 @@ struct _stmt {
             expr_ty test;
             asdl_stmt_seq *body;
             asdl_stmt_seq *orelse;
-        } Until;
+        } Till;
 
         struct {
             expr_ty test;
@@ -744,9 +744,9 @@ stmt_ty _PyAST_AsyncFor(expr_ty target, expr_ty iter, asdl_stmt_seq * body,
 stmt_ty _PyAST_While(expr_ty test, asdl_stmt_seq * body, asdl_stmt_seq *
                      orelse, int lineno, int col_offset, int end_lineno, int
                      end_col_offset, PyArena *arena);
-stmt_ty _PyAST_Until(expr_ty test, asdl_stmt_seq * body, asdl_stmt_seq *
-                     orelse, int lineno, int col_offset, int end_lineno, int
-                     end_col_offset, PyArena *arena);
+stmt_ty _PyAST_Till(expr_ty test, asdl_stmt_seq * body, asdl_stmt_seq * orelse,
+                    int lineno, int col_offset, int end_lineno, int
+                    end_col_offset, PyArena *arena);
 stmt_ty _PyAST_If(expr_ty test, asdl_stmt_seq * body, asdl_stmt_seq * orelse,
                   int lineno, int col_offset, int end_lineno, int
                   end_col_offset, PyArena *arena);

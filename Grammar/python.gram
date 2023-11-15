@@ -131,7 +131,7 @@ compound_stmt[stmt_ty]:
     | &('for' | 'async') for_stmt
     | &'try' try_stmt
     | &'while' while_stmt
-    | &'until' until_stmt
+    | &'till' till_stmt
     | match_stmt
 
 # SIMPLE STATEMENTS
@@ -388,9 +388,9 @@ while_stmt[stmt_ty]:
     | 'while' a=named_expression ':' b=block c=[else_block] { _PyAST_While(a, b, c, EXTRA) }
 
 
-until_stmt[stmt_ty]:
-    | invalid_until_stmt
-    | 'until' a=named_expression ':' b=block c=[else_block] { _PyAST_Until(a, b, c, EXTRA) }
+till_stmt[stmt_ty]:
+    | invalid_till_stmt
+    | 'till' a=named_expression ':' b=block c=[else_block] { _PyAST_Till(a, b, c, EXTRA) }
 
 # For statement
 # -------------
@@ -1376,6 +1376,10 @@ invalid_elif_stmt:
     | 'elif' named_expression NEWLINE { RAISE_SYNTAX_ERROR("expected ':'") }
     | a='elif' named_expression ':' NEWLINE !INDENT {
         RAISE_INDENTATION_ERROR("expected an indented block after 'elif' statement on line %d", a->lineno) }
+invalid_elifnt_stmt:
+    | 'elifnt' named_expression NEWLINE { RAISE_SYNTAX_ERROR("expected ':'") }
+    | a='elifnt' named_expression ':' NEWLINE !INDENT {
+        RAISE_INDENTATION_ERROR("expected an indented block after 'elifnt' statement on line %d", a->lineno) }
 invalid_else_stmt:
     | a='else' ':' NEWLINE !INDENT {
         RAISE_INDENTATION_ERROR("expected an indented block after 'else' statement on line %d", a->lineno) }
@@ -1383,10 +1387,10 @@ invalid_while_stmt:
     | 'while' named_expression NEWLINE { RAISE_SYNTAX_ERROR("expected ':'") }
     | a='while' named_expression ':' NEWLINE !INDENT {
         RAISE_INDENTATION_ERROR("expected an indented block after 'while' statement on line %d", a->lineno) }
-invalid_until_stmt:
-    | 'until' named_expression NEWLINE { RAISE_SYNTAX_ERROR("expected ':'") }
-    | a='until' named_expression ':' NEWLINE !INDENT {
-        RAISE_INDENTATION_ERROR("expected an indented block after 'until' statement on line %d", a->lineno) }
+invalid_till_stmt:
+    | 'till' named_expression NEWLINE { RAISE_SYNTAX_ERROR("expected ':'") }
+    | a='till' named_expression ':' NEWLINE !INDENT {
+        RAISE_INDENTATION_ERROR("expected an indented block after 'till' statement on line %d", a->lineno) }
 invalid_for_stmt:
     | ['async'] 'for' star_targets 'in' star_expressions NEWLINE { RAISE_SYNTAX_ERROR("expected ':'") }
     | ['async'] a='for' star_targets 'in' star_expressions ':' NEWLINE !INDENT {

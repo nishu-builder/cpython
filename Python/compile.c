@@ -1444,9 +1444,9 @@ find_ann(asdl_stmt_seq *stmts)
             res = find_ann(st->v.While.body) ||
                   find_ann(st->v.While.orelse);
             break;
-        case Until_kind:
-            res = find_ann(st->v.Until.body) ||
-                  find_ann(st->v.Until.orelse);
+        case Till_kind:
+            res = find_ann(st->v.Till.body) ||
+                  find_ann(st->v.Till.orelse);
             break;
         case If_kind:
             res = find_ann(st->v.If.body) ||
@@ -3194,7 +3194,7 @@ compiler_boolean_eval_loop(struct compiler *c, stmt_ty s, int continue_if_test)
 }
 
 static int
-compiler_until(struct compiler *c, stmt_ty s)
+compiler_till(struct compiler *c, stmt_ty s)
 {
     return compiler_boolean_eval_loop(c, s, 0);
 }
@@ -4041,8 +4041,8 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
         return compiler_for(c, s);
     case While_kind:
         return compiler_while(c, s);
-    case Until_kind:
-        return compiler_until(c, s);
+    case Till_kind:
+        return compiler_till(c, s);
     case If_kind:
         return compiler_if(c, s);
     case Match_kind:
