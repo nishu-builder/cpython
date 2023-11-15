@@ -904,7 +904,7 @@ list_reduce_impl(PyListObject *self, PyObject *function, PyObject *initial)
         accumulator = initial;
         remaining_items_to_consider = len;
     } else {
-        if (remaining_items_to_consider == 0) {
+        if (len == 0) {
             PyErr_SetString(PyExc_TypeError, "reduce of empty sequence with no initial value");
             return NULL;
         }
