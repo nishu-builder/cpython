@@ -14,8 +14,8 @@ void _Py_InitVersion(void)
         return;
     }
     initialized = 1;
-    PyOS_snprintf(version, sizeof(version), "%.80s (%.80s) %.80s",
-                  PY_VERSION, Py_GetBuildInfo(), Py_GetCompiler());
+    PyOS_snprintf(version, sizeof(version), "%.80s (Elifnt %0.80s) (%.80s) %.80s",
+                  PY_VERSION, ELIFNT_VERSION, Py_GetBuildInfo(), Py_GetCompiler());
 }
 
 const char *
