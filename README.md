@@ -22,7 +22,11 @@ Visit the Elifnt website for an in-browser Elifnt interpreter: https://python-el
 
 Elifnt base docker images can be found here: https://hub.docker.com/r/nishubuilder/python-elifnt
 
-You can download it from brew: `brew install python-elifnt@3.13.0a1`, after which it will be available as `python-elifnt`
+You can download the latest version with brew, after which it will be available as `python-elifnt`:
+```
+brew tap nishu-builder/elifnt
+brew install python-elifnt@3.13.0a1-0.0.4
+```
 
 You can also build Elifnt from source. See the [Build Instructions](#build-instructions) section for more details.
 
