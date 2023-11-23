@@ -1,9 +1,9 @@
-Elifnt 3.13.0a1-0.0.2
+Elifnt 3.13.0a1-0.0.4
 =====================================
 
 Elifnt is a fork of the [CPython](https://github.com/python/cpython) interpreter. It is a dialect that supports additional features not present in the standard Python interpreter.
 
-It is currently on version 3.13.0a1 (base CPython version)-0.0.2 (Elifnt version).
+It is currently on version 3.13.0a1 (base CPython version)-0.0.4 (Elifnt version).
 
 
 # Features
@@ -22,6 +22,8 @@ Visit the Elifnt website for an in-browser Elifnt interpreter: https://python-el
 
 Elifnt base docker images can be found here: https://hub.docker.com/r/nishubuilder/python-elifnt
 
+You can download it from brew: `brew install python-elifnt@3.13.0a1`, after which it will be available as `python-elifnt`
+
 You can also build Elifnt from source. See the [Build Instructions](#build-instructions) section for more details.
 
 
@@ -38,10 +40,7 @@ make
 sudo make install
 ```
 
-To alias `python-elifnt`, add the following to your `~/.zshrc` or `~/.bashrc`:
-```
-alias python-elifnt="/usr/local/python-elifnt/bin/python3"
-```
+It should then be available as `python-elifnt`
 
 
 # Contributing
