@@ -125,6 +125,7 @@ gc_decref(PyGC_Head *g)
 #define DEBUG_LEAK              DEBUG_COLLECTABLE | \
                 DEBUG_UNCOLLECTABLE | \
                 DEBUG_SAVEALL
+#define DEBUG_COLLECTED_TYPES   (1<<3) /* track gc object creation/deletion */
 
 #define GEN_HEAD(gcstate, n) (&(gcstate)->generations[n].head)
 
@@ -1197,6 +1198,7 @@ handle_resurrected_objects(PyGC_Head *unreachable, PyGC_Head* still_unreachable,
 static Py_ssize_t
 gc_collect_main(PyThreadState *tstate, int generation,
                 Py_ssize_t *n_collected, Py_ssize_t *n_uncollectable,
+                PyObject *collected_type_counts,
                 int nofail)
 {
     GC_STAT_ADD(generation, collections, 1);
@@ -1310,6 +1312,28 @@ gc_collect_main(PyThreadState *tstate, int generation,
     * in finalizers to be freed.
     */
     m += gc_list_size(&final_unreachable);
+    if (collected_type_counts != NULL) {
+        // Iterate over the objects in final_unreachable to increment type counts
+        for (gc = GC_NEXT(&final_unreachable); gc != &final_unreachable; gc = GC_NEXT(gc)) {
+            PyObject *obj = FROM_GC(gc);
+            PyObject *type = PyObject_Type(obj);
+            if (type != NULL) {
+                PyObject *count = PyDict_GetItem(collected_type_counts, type);
+                if (count == NULL) {
+                    count = PyLong_FromLong(1);
+                    PyDict_SetItem(collected_type_counts, type, count);
+                    Py_DECREF(count);
+                } else {
+                    // Safely increment the count
+                    PyObject *new_count = PyLong_FromLong(PyLong_AsLong(count) + 1);
+                    PyDict_SetItem(collected_type_counts, type, new_count);
+                    Py_DECREF(new_count);
+                }
+                Py_DECREF(type);
+            }
+        }
+    }
+
     delete_garbage(tstate, gcstate, &final_unreachable, old);
 
     /* Collect statistics on uncollectable objects found and print
@@ -1378,13 +1402,14 @@ gc_collect_main(PyThreadState *tstate, int generation,
     return n + m;
 }
 
+
 /* Invoke progress callbacks to notify clients that garbage collection
  * is starting or stopping
  */
 static void
 invoke_gc_callback(PyThreadState *tstate, const char *phase,
                    int generation, Py_ssize_t collected,
-                   Py_ssize_t uncollectable)
+                   Py_ssize_t uncollectable, PyObject *collected_type_counts)
 {
     assert(!_PyErr_Occurred(tstate));
 
@@ -1405,6 +1430,17 @@ invoke_gc_callback(PyThreadState *tstate, const char *phase,
         if (info == NULL) {
             PyErr_WriteUnraisable(NULL);
             return;
+        }
+        if (collected_type_counts != NULL) {
+            PyObject *key = PyUnicode_FromString("collected_types");
+            if (PyDict_SetItem(info, key, collected_type_counts) != 0) {
+                // Handle error if setting the item failed
+                PyErr_WriteUnraisable(key);
+                Py_DECREF(key);
+                Py_XDECREF(info);
+                return;
+            }
+            Py_DECREF(key);
         }
     }
 
@@ -1428,6 +1464,7 @@ invoke_gc_callback(PyThreadState *tstate, const char *phase,
         }
         Py_DECREF(cb);
     }
+
     Py_DECREF(phase_obj);
     Py_XDECREF(info);
     assert(!_PyErr_Occurred(tstate));
@@ -1440,10 +1477,23 @@ static Py_ssize_t
 gc_collect_with_callback(PyThreadState *tstate, int generation)
 {
     assert(!_PyErr_Occurred(tstate));
+    PyObject *collected_type_counts = NULL;
+    GCState *gcstate = &tstate->interp->gc;
+    if (gcstate->callbacks != NULL
+        && PyList_GET_SIZE(gcstate->callbacks) != 0
+        && gcstate->debug & DEBUG_COLLECTED_TYPES) {
+        collected_type_counts = PyDict_New();
+        // If there was an error allocating the dictionary to do counts, do not
+        // prevent GC. Just run without it.
+    }
+
     Py_ssize_t result, collected, uncollectable;
-    invoke_gc_callback(tstate, "start", generation, 0, 0);
-    result = gc_collect_main(tstate, generation, &collected, &uncollectable, 0);
-    invoke_gc_callback(tstate, "stop", generation, collected, uncollectable);
+    invoke_gc_callback(tstate, "start", generation, 0, 0, NULL);
+    result = gc_collect_main(tstate, generation, &collected, &uncollectable, collected_type_counts, 0);
+    invoke_gc_callback(tstate, "stop", generation, collected, uncollectable, collected_type_counts);
+    if (collected_type_counts != NULL) {
+        Py_DECREF(collected_type_counts);
+    }
     assert(!_PyErr_Occurred(tstate));
     return result;
 }
@@ -1597,6 +1647,7 @@ gc.set_debug
             found.
           DEBUG_SAVEALL - Save objects to gc.garbage rather than freeing them.
           DEBUG_LEAK - Debug leaking programs (everything but STATS).
+          DEBUG_COLLECTED_TYPES - Supply collected type counts to gc callbacks.
     /
 
 Set the garbage collection debugging flags.
@@ -1606,7 +1657,8 @@ Debugging information is written to sys.stderr.
 
 static PyObject *
 gc_set_debug_impl(PyObject *module, int flags)
-/*[clinic end generated code: output=7c8366575486b228 input=5e5ce15e84fbed15]*/
+/*[clinic end generated code: output=7c8366575486b228 input=d2a373b127ab378f]*/
+
 {
     GCState *gcstate = get_gc_state();
     gcstate->debug = flags;
@@ -2057,6 +2109,7 @@ gcmodule_exec(PyObject *module)
     ADD_INT(DEBUG_UNCOLLECTABLE);
     ADD_INT(DEBUG_SAVEALL);
     ADD_INT(DEBUG_LEAK);
+    ADD_INT(DEBUG_COLLECTED_TYPES);
 #undef ADD_INT
     return 0;
 }
@@ -2151,7 +2204,7 @@ _PyGC_CollectNoFail(PyThreadState *tstate)
 
     Py_ssize_t n;
     gcstate->collecting = 1;
-    n = gc_collect_main(tstate, NUM_GENERATIONS - 1, NULL, NULL, 1);
+    n = gc_collect_main(tstate, NUM_GENERATIONS - 1, NULL, NULL, NULL, 1);
     gcstate->collecting = 0;
     return n;
 }

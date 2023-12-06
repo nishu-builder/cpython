@@ -161,6 +161,7 @@ PyDoc_STRVAR(gc_set_debug__doc__,
 "        found.\n"
 "      DEBUG_SAVEALL - Save objects to gc.garbage rather than freeing them.\n"
 "      DEBUG_LEAK - Debug leaking programs (everything but STATS).\n"
+"      DEBUG_COLLECTED_TYPES - Supply collected type counts to gc callbacks.\n"
 "\n"
 "Debugging information is written to sys.stderr.");
 
@@ -425,4 +426,4 @@ gc_get_freeze_count(PyObject *module, PyObject *Py_UNUSED(ignored))
 exit:
     return return_value;
 }
-/*[clinic end generated code: output=5c345e7b4ce6085a input=a9049054013a1b77]*/
+/*[clinic end generated code: output=6cd053ca2bed1b09 input=a9049054013a1b77]*/
