@@ -879,49 +879,18 @@ list_map(PyListObject *self, PyObject *func)
     return result;
 }
 
-int get_number_of_cpus() {
-    // Import the os module
-    PyObject *os_module = PyImport_ImportModule("os");
-    if (os_module == NULL) {
-        return NULL; // Handle the error appropriately
-    }
-
-    // Get the cpu_count function
-    PyObject *cpu_count_func = PyObject_GetAttrString(os_module, "cpu_count");
-    if (cpu_count_func == NULL) {
-        Py_DECREF(os_module);
-        return NULL; // Handle the error appropriately
-    }
-
-    // Call the cpu_count function
-    PyObject *cpu_count_result = PyObject_CallObject(cpu_count_func, NULL);
-    if (cpu_count_result == NULL) {
-        Py_DECREF(os_module);
-        Py_DECREF(cpu_count_func);
-        return NULL; // Handle the error appropriately
-    }
-
-    int num_workers = PyLong_AsLong(cpu_count_result);
-
-    // Clean up
-    Py_DECREF(cpu_count_result);
-    Py_DECREF(cpu_count_func);
-    Py_DECREF(os_module);
-    return num_workers;
-}
-
-void verify_is_pickleable(PyObject* func) {
+bool is_pickleable(PyObject* func) {
 // Import the pickle module
     PyObject *pickle_module = PyImport_ImportModule("pickle");
     if (pickle_module == NULL) {
-        PyErr_SetString(PyExc_TypeError, "Failed checking if the function is pickleable.");
-        return;
+        PyErr_SetString(PyExc_RuntimeError, "Failed checking if the function is pickleable.");
+        return false;
     }
     PyObject *pickle_dumps = PyObject_GetAttrString(pickle_module, "dumps");
     if (pickle_dumps == NULL) {
-        PyErr_SetString(PyExc_TypeError, "Failed checking if the function is pickleable.");
+        PyErr_SetString(PyExc_RuntimeError, "Failed checking if the function is pickleable.");
         Py_DECREF(pickle_module);
-        return;
+        return false;
     }
     PyObject *pickled_func = PyObject_CallFunctionObjArgs(pickle_dumps, func, NULL);
     if (pickled_func == NULL) {
@@ -929,44 +898,52 @@ void verify_is_pickleable(PyObject* func) {
         PyErr_SetString(PyExc_TypeError, "The provided function is not pickleable.");
         Py_DECREF(pickle_module);
         Py_DECREF(pickle_dumps);
-        return;
+        return false;
     }
     Py_DECREF(pickled_func);
+    return true;
 }
 
 /*[clinic input]
 list.pmap
      func: object
+     num_workers: object = None
      /
 Parallel map a function over a list
 [clinic start generated code]*/
 
 static PyObject *
-list_pmap(PyListObject *self, PyObject *func)
-/*[clinic end generated code: output=3a071f91d180695c input=9695a301b3e94c7d]*/
+list_pmap_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
+/*[clinic end generated code: output=7dfa075b31409a2f input=42fdb6f46cbfad38]*/
 {
-    verify_is_pickleable(func);
+    if (!is_pickleable(func)) {
+        // Already set error code
+        return NULL;
+    }
+
     Py_ssize_t len = PyList_GET_SIZE(self);
     PyObject *result = PyList_New(len);
     if (result == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to allocate new list.");
         return NULL;
     }
+
     // Import the multiprocessing module
     PyObject *multiprocessing_module = PyImport_ImportModule("multiprocessing");
     if (multiprocessing_module == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to import the multiprocessing module.");
         Py_DECREF(result);
-        return NULL; // Handle the error appropriately
+        return NULL;
     }
-    // Number of worker processes
-    int num_workers = get_number_of_cpus();
-
     // Create a multiprocessing pool
     PyObject *Pool = PyObject_GetAttrString(multiprocessing_module, "Pool");
-    PyObject *pool_args = Py_BuildValue("(i)", num_workers);
+    PyObject *pool_args = num_workers == Py_None ? NULL : PyTuple_Pack(1, num_workers);
     PyObject *pool = PyObject_CallObject(Pool, pool_args);
-    Py_DECREF(pool_args);
-
+    if (pool_args != NULL) {
+        Py_DECREF(pool_args);
+    }
     if (pool == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to initialize a multiprocessing pool.");
         Py_DECREF(result);
         return NULL;
     }
@@ -979,6 +956,7 @@ list_pmap(PyListObject *self, PyObject *func)
     Py_DECREF(map_method);
 
     if (parallel_result == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to generate result.");
         Py_DECREF(result);
         Py_DECREF(pool);
         return NULL;
