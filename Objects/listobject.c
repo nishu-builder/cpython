@@ -879,6 +879,141 @@ list_map(PyListObject *self, PyObject *func)
     return result;
 }
 
+bool is_pickleable(PyObject* func) {
+// Import the pickle module
+    PyObject *pickle_module = PyImport_ImportModule("pickle");
+    if (pickle_module == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed checking if the function is pickleable.");
+        return false;
+    }
+    PyObject *pickle_dumps = PyObject_GetAttrString(pickle_module, "dumps");
+    if (pickle_dumps == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed checking if the function is pickleable.");
+        Py_DECREF(pickle_module);
+        return false;
+    }
+    PyObject *pickled_func = PyObject_CallFunctionObjArgs(pickle_dumps, func, NULL);
+    if (pickled_func == NULL) {
+        // The function is not pickleable, handle the error
+        PyErr_SetString(PyExc_TypeError, "The provided function is not pickleable.");
+        Py_DECREF(pickle_module);
+        Py_DECREF(pickle_dumps);
+        return false;
+    }
+    Py_DECREF(pickled_func);
+    return true;
+}
+
+static PyObject *
+list_parallel_apply(PyListObject *self, PyObject *func, PyObject *num_workers, int is_filtering)
+{
+    if (!is_pickleable(func)) {
+        // Already set error code
+        return NULL;
+    }
+
+    Py_ssize_t len = PyList_GET_SIZE(self);
+    PyObject *result = is_filtering ? PyList_New(0) : PyList_New(len); // Initialize an empty list for filtering
+    if (result == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to allocate new list.");
+        return NULL;
+    }
+
+    // Import the multiprocessing module
+    PyObject *multiprocessing_module = PyImport_ImportModule("multiprocessing");
+    if (multiprocessing_module == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to import the multiprocessing module.");
+        Py_DECREF(result);
+        return NULL;
+    }
+
+    // Create a multiprocessing pool
+    PyObject *Pool = PyObject_GetAttrString(multiprocessing_module, "Pool");
+    PyObject *pool_args = num_workers == Py_None ? NULL : PyTuple_Pack(1, num_workers);
+    PyObject *pool = PyObject_CallObject(Pool, pool_args);
+    if (pool_args != NULL) {
+        Py_DECREF(pool_args);
+    }
+    if (pool == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to initialize a multiprocessing pool.");
+        Py_DECREF(result);
+        return NULL;
+    }
+
+    // Map or filter function over the list using the pool
+    PyObject *map_method = PyObject_GetAttrString(pool, "map");
+    PyObject *map_args = Py_BuildValue("(OO)", func, self);
+    PyObject *parallel_result = PyObject_CallObject(map_method, map_args);
+    Py_DECREF(map_args);
+    Py_DECREF(map_method);
+
+    if (parallel_result == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to generate result.");
+        Py_DECREF(result);
+        Py_DECREF(pool);
+        return NULL;
+    }
+    // Common code to collect results from the pool
+    for (int i = 0; i < len; i++) {
+        PyObject *item = PyList_GET_ITEM(parallel_result, i);
+        if (is_filtering) {
+            int keep = PyObject_IsTrue(item);
+            if (keep == -1) {
+                // Error occurred during the filtering function
+                PyErr_SetString(PyExc_RuntimeError, "Error occurred during filtering.");
+                Py_DECREF(result);
+                Py_DECREF(pool);
+                Py_DECREF(parallel_result);
+                return NULL;
+            }
+            if (keep) {
+                Py_INCREF(item); // Increment refcount as we are inserting this into another list
+                PyList_Append(result, item); // Append the item to the result list
+            }
+        } else {
+            Py_INCREF(item); // Increment refcount as we are inserting this into another list
+            PyList_SET_ITEM(result, i, item);
+        }
+    }
+    // Close and join the pool
+    PyObject_CallMethod(pool, "close", NULL);
+    PyObject_CallMethod(pool, "join", NULL);
+    Py_DECREF(pool);
+    Py_DECREF(parallel_result);
+
+    return result;
+}
+
+/*[clinic input]
+list.pfilter
+     func: object
+     num_workers: object = None
+     /
+Parallel map a function over a list
+[clinic start generated code]*/
+
+static PyObject *
+list_pfilter_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
+/*[clinic end generated code: output=56c2b5067c93071f input=f23b3abaedc904de]*/
+{
+    return list_parallel_apply(self, func, num_workers, 1);
+}
+
+/*[clinic input]
+list.pmap
+     func: object
+     num_workers: object = None
+     /
+Parallel map a function over a list
+[clinic start generated code]*/
+
+static PyObject *
+list_pmap_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
+/*[clinic end generated code: output=7dfa075b31409a2f input=42fdb6f46cbfad38]*/
+{
+    return list_parallel_apply(self, func, num_workers, 0);
+}
+
 
 /*[clinic input]
 list.reduce
@@ -2987,6 +3122,8 @@ static PyMethodDef list_methods[] = {
     LIST_COPY_METHODDEF
     LIST_APPEND_METHODDEF
     LIST_MAP_METHODDEF
+    LIST_PMAP_METHODDEF
+    LIST_PFILTER_METHODDEF
     LIST_REDUCE_METHODDEF
     LIST_FILTER_METHODDEF
     LIST_INSERT_METHODDEF

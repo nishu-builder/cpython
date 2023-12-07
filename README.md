@@ -12,6 +12,7 @@ Elifnt introduces the following new features:
 - Safe attribute access: `?.`
 - Safe subscript access: `?[...]`
 - Native methods on lists: `list.map`, `list.reduce`, `list.filter`
+- Native parallelized map and filter on lists: `list.pmap`, `list.pfilter`
 - Until statements: `till`
 - An alternative conditional statement: `elifnt`
 - A new garbage collection debug flag: `gc.DEBUG_COLLECTED_TYPES`. When set, gc callbacks will be supplied with the count of collected objects by type after each collection
