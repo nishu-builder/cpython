@@ -904,17 +904,8 @@ bool is_pickleable(PyObject* func) {
     return true;
 }
 
-/*[clinic input]
-list.pmap
-     func: object
-     num_workers: object = None
-     /
-Parallel map a function over a list
-[clinic start generated code]*/
-
 static PyObject *
-list_pmap_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
-/*[clinic end generated code: output=7dfa075b31409a2f input=42fdb6f46cbfad38]*/
+list_parallel_apply(PyListObject *self, PyObject *func, PyObject *num_workers, int is_filtering)
 {
     if (!is_pickleable(func)) {
         // Already set error code
@@ -922,7 +913,7 @@ list_pmap_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
     }
 
     Py_ssize_t len = PyList_GET_SIZE(self);
-    PyObject *result = PyList_New(len);
+    PyObject *result = is_filtering ? PyList_New(0) : PyList_New(len); // Initialize an empty list for filtering
     if (result == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "Failed to allocate new list.");
         return NULL;
@@ -935,6 +926,7 @@ list_pmap_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
         Py_DECREF(result);
         return NULL;
     }
+
     // Create a multiprocessing pool
     PyObject *Pool = PyObject_GetAttrString(multiprocessing_module, "Pool");
     PyObject *pool_args = num_workers == Py_None ? NULL : PyTuple_Pack(1, num_workers);
@@ -948,7 +940,7 @@ list_pmap_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
         return NULL;
     }
 
-    // Map function over the list using the pool
+    // Map or filter function over the list using the pool
     PyObject *map_method = PyObject_GetAttrString(pool, "map");
     PyObject *map_args = Py_BuildValue("(OO)", func, self);
     PyObject *parallel_result = PyObject_CallObject(map_method, map_args);
@@ -961,14 +953,28 @@ list_pmap_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
         Py_DECREF(pool);
         return NULL;
     }
-
-    // Collect results from the pool
+    // Common code to collect results from the pool
     for (int i = 0; i < len; i++) {
         PyObject *item = PyList_GET_ITEM(parallel_result, i);
-        Py_INCREF(item); // Increment refcount as we are inserting this into another list
-        PyList_SET_ITEM(result, i, item);
+        if (is_filtering) {
+            int keep = PyObject_IsTrue(item);
+            if (keep == -1) {
+                // Error occurred during the filtering function
+                PyErr_SetString(PyExc_RuntimeError, "Error occurred during filtering.");
+                Py_DECREF(result);
+                Py_DECREF(pool);
+                Py_DECREF(parallel_result);
+                return NULL;
+            }
+            if (keep) {
+                Py_INCREF(item); // Increment refcount as we are inserting this into another list
+                PyList_Append(result, item); // Append the item to the result list
+            }
+        } else {
+            Py_INCREF(item); // Increment refcount as we are inserting this into another list
+            PyList_SET_ITEM(result, i, item);
+        }
     }
-
     // Close and join the pool
     PyObject_CallMethod(pool, "close", NULL);
     PyObject_CallMethod(pool, "join", NULL);
@@ -976,6 +982,36 @@ list_pmap_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
     Py_DECREF(parallel_result);
 
     return result;
+}
+
+/*[clinic input]
+list.pfilter
+     func: object
+     num_workers: object = None
+     /
+Parallel map a function over a list
+[clinic start generated code]*/
+
+static PyObject *
+list_pfilter_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
+/*[clinic end generated code: output=56c2b5067c93071f input=f23b3abaedc904de]*/
+{
+    return list_parallel_apply(self, func, num_workers, 1);
+}
+
+/*[clinic input]
+list.pmap
+     func: object
+     num_workers: object = None
+     /
+Parallel map a function over a list
+[clinic start generated code]*/
+
+static PyObject *
+list_pmap_impl(PyListObject *self, PyObject *func, PyObject *num_workers)
+/*[clinic end generated code: output=7dfa075b31409a2f input=42fdb6f46cbfad38]*/
+{
+    return list_parallel_apply(self, func, num_workers, 0);
 }
 
 
@@ -3087,6 +3123,7 @@ static PyMethodDef list_methods[] = {
     LIST_APPEND_METHODDEF
     LIST_MAP_METHODDEF
     LIST_PMAP_METHODDEF
+    LIST_PFILTER_METHODDEF
     LIST_REDUCE_METHODDEF
     LIST_FILTER_METHODDEF
     LIST_INSERT_METHODDEF

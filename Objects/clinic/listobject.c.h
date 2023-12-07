@@ -104,6 +104,40 @@ PyDoc_STRVAR(list_map__doc__,
 #define LIST_MAP_METHODDEF    \
     {"map", (PyCFunction)list_map, METH_O, list_map__doc__},
 
+PyDoc_STRVAR(list_pfilter__doc__,
+"pfilter($self, func, num_workers=None, /)\n"
+"--\n"
+"\n"
+"Parallel map a function over a list");
+
+#define LIST_PFILTER_METHODDEF    \
+    {"pfilter", _PyCFunction_CAST(list_pfilter), METH_FASTCALL, list_pfilter__doc__},
+
+static PyObject *
+list_pfilter_impl(PyListObject *self, PyObject *func, PyObject *num_workers);
+
+static PyObject *
+list_pfilter(PyListObject *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    PyObject *return_value = NULL;
+    PyObject *func;
+    PyObject *num_workers = Py_None;
+
+    if (!_PyArg_CheckPositional("pfilter", nargs, 1, 2)) {
+        goto exit;
+    }
+    func = args[0];
+    if (nargs < 2) {
+        goto skip_optional;
+    }
+    num_workers = args[1];
+skip_optional:
+    return_value = list_pfilter_impl(self, func, num_workers);
+
+exit:
+    return return_value;
+}
+
 PyDoc_STRVAR(list_pmap__doc__,
 "pmap($self, func, num_workers=None, /)\n"
 "--\n"
@@ -470,4 +504,4 @@ list___reversed__(PyListObject *self, PyObject *Py_UNUSED(ignored))
 {
     return list___reversed___impl(self);
 }
-/*[clinic end generated code: output=d1d2386fd11bcdeb input=a9049054013a1b77]*/
+/*[clinic end generated code: output=9910ef31a479623c input=a9049054013a1b77]*/
