@@ -1,9 +1,9 @@
-Elifnt 3.13.0a1-0.0.5
+Elifnt 3.13.0a1-0.0.6
 =====================================
 
 Elifnt is a fork of the [CPython](https://github.com/python/cpython) interpreter. It is a dialect that supports additional features not present in the standard Python interpreter.
 
-It is currently on version 3.13.0a1 (base CPython version)-0.0.5 (Elifnt version).
+It is currently on version 3.13.0a1 (base CPython version)-0.0.6 (Elifnt version).
 
 
 # Features
@@ -27,7 +27,7 @@ Elifnt base docker images can be found here: https://hub.docker.com/r/nishubuild
 You can download the latest version with brew, after which it will be available as `python-elifnt`:
 ```
 brew tap nishu-builder/elifnt
-brew install python-elifnt@3.13.0a1-0.0.5
+brew install python-elifnt@3.13.0a1-0.0.6
 ```
 
 You can also build Elifnt from source. See the [Build Instructions](#build-instructions) section for more details.
