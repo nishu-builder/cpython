@@ -879,6 +879,127 @@ list_map(PyListObject *self, PyObject *func)
     return result;
 }
 
+int get_number_of_cpus() {
+    // Import the os module
+    PyObject *os_module = PyImport_ImportModule("os");
+    if (os_module == NULL) {
+        return NULL; // Handle the error appropriately
+    }
+
+    // Get the cpu_count function
+    PyObject *cpu_count_func = PyObject_GetAttrString(os_module, "cpu_count");
+    if (cpu_count_func == NULL) {
+        Py_DECREF(os_module);
+        return NULL; // Handle the error appropriately
+    }
+
+    // Call the cpu_count function
+    PyObject *cpu_count_result = PyObject_CallObject(cpu_count_func, NULL);
+    if (cpu_count_result == NULL) {
+        Py_DECREF(os_module);
+        Py_DECREF(cpu_count_func);
+        return NULL; // Handle the error appropriately
+    }
+
+    int num_workers = PyLong_AsLong(cpu_count_result);
+
+    // Clean up
+    Py_DECREF(cpu_count_result);
+    Py_DECREF(cpu_count_func);
+    Py_DECREF(os_module);
+    return num_workers;
+}
+
+void verify_is_pickleable(PyObject* func) {
+// Import the pickle module
+    PyObject *pickle_module = PyImport_ImportModule("pickle");
+    if (pickle_module == NULL) {
+        PyErr_SetString(PyExc_TypeError, "Failed checking if the function is pickleable.");
+        return;
+    }
+    PyObject *pickle_dumps = PyObject_GetAttrString(pickle_module, "dumps");
+    if (pickle_dumps == NULL) {
+        PyErr_SetString(PyExc_TypeError, "Failed checking if the function is pickleable.");
+        Py_DECREF(pickle_module);
+        return;
+    }
+    PyObject *pickled_func = PyObject_CallFunctionObjArgs(pickle_dumps, func, NULL);
+    if (pickled_func == NULL) {
+        // The function is not pickleable, handle the error
+        PyErr_SetString(PyExc_TypeError, "The provided function is not pickleable.");
+        Py_DECREF(pickle_module);
+        Py_DECREF(pickle_dumps);
+        return;
+    }
+    Py_DECREF(pickled_func);
+}
+
+/*[clinic input]
+list.pmap
+     func: object
+     /
+Parallel map a function over a list
+[clinic start generated code]*/
+
+static PyObject *
+list_pmap(PyListObject *self, PyObject *func)
+/*[clinic end generated code: output=3a071f91d180695c input=9695a301b3e94c7d]*/
+{
+    verify_is_pickleable(func);
+    Py_ssize_t len = PyList_GET_SIZE(self);
+    PyObject *result = PyList_New(len);
+    if (result == NULL) {
+        return NULL;
+    }
+    // Import the multiprocessing module
+    PyObject *multiprocessing_module = PyImport_ImportModule("multiprocessing");
+    if (multiprocessing_module == NULL) {
+        Py_DECREF(result);
+        return NULL; // Handle the error appropriately
+    }
+    // Number of worker processes
+    int num_workers = get_number_of_cpus();
+
+    // Create a multiprocessing pool
+    PyObject *Pool = PyObject_GetAttrString(multiprocessing_module, "Pool");
+    PyObject *pool_args = Py_BuildValue("(i)", num_workers);
+    PyObject *pool = PyObject_CallObject(Pool, pool_args);
+    Py_DECREF(pool_args);
+
+    if (pool == NULL) {
+        Py_DECREF(result);
+        return NULL;
+    }
+
+    // Map function over the list using the pool
+    PyObject *map_method = PyObject_GetAttrString(pool, "map");
+    PyObject *map_args = Py_BuildValue("(OO)", func, self);
+    PyObject *parallel_result = PyObject_CallObject(map_method, map_args);
+    Py_DECREF(map_args);
+    Py_DECREF(map_method);
+
+    if (parallel_result == NULL) {
+        Py_DECREF(result);
+        Py_DECREF(pool);
+        return NULL;
+    }
+
+    // Collect results from the pool
+    for (int i = 0; i < len; i++) {
+        PyObject *item = PyList_GET_ITEM(parallel_result, i);
+        Py_INCREF(item); // Increment refcount as we are inserting this into another list
+        PyList_SET_ITEM(result, i, item);
+    }
+
+    // Close and join the pool
+    PyObject_CallMethod(pool, "close", NULL);
+    PyObject_CallMethod(pool, "join", NULL);
+    Py_DECREF(pool);
+    Py_DECREF(parallel_result);
+
+    return result;
+}
+
 
 /*[clinic input]
 list.reduce
@@ -2987,6 +3108,7 @@ static PyMethodDef list_methods[] = {
     LIST_COPY_METHODDEF
     LIST_APPEND_METHODDEF
     LIST_MAP_METHODDEF
+    LIST_PMAP_METHODDEF
     LIST_REDUCE_METHODDEF
     LIST_FILTER_METHODDEF
     LIST_INSERT_METHODDEF

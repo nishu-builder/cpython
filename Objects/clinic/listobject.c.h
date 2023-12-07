@@ -104,6 +104,15 @@ PyDoc_STRVAR(list_map__doc__,
 #define LIST_MAP_METHODDEF    \
     {"map", (PyCFunction)list_map, METH_O, list_map__doc__},
 
+PyDoc_STRVAR(list_pmap__doc__,
+"pmap($self, func, /)\n"
+"--\n"
+"\n"
+"Parallel map a function over a list");
+
+#define LIST_PMAP_METHODDEF    \
+    {"pmap", (PyCFunction)list_pmap, METH_O, list_pmap__doc__},
+
 PyDoc_STRVAR(list_reduce__doc__,
 "reduce($self, function, initial=None, /)\n"
 "--\n"
@@ -436,4 +445,4 @@ list___reversed__(PyListObject *self, PyObject *Py_UNUSED(ignored))
 {
     return list___reversed___impl(self);
 }
-/*[clinic end generated code: output=6b67a03e76d90f57 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=bef521f430d6736c input=a9049054013a1b77]*/
